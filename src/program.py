@@ -20,15 +20,26 @@ a functioning TCP part of the course work with little hassle.
 def send_and_receive_tcp(address, port, message):
     print("You gave arguments: {} {} {}".format(address, port, message))
     # create TCP socket
-   
+    print("Creating socket")
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    # Set timeout
+    s.settimeout(5)
+
     # connect socket to given address and port
+    print("Connecting to address {}, port {}".format(address, port))
+    s.connect((address, port))
     
     # python3 sendall() requires bytes like object. encode the message with str.encode() command
-    
+
     # send given message to socket
+    print("Sending message: ", message)
+    s.send(message)
     
     # receive data from socket
- 
+    print("Receiving data")
+    data = s.recv(4096)
+    print(data)
     # data you received is in bytes format. turn it to string with .decode() command
     
     # print received data
@@ -67,6 +78,10 @@ def main():
         print("Value Error")
         # Print usage instructions and exit if we didn't get proper arguments
         sys.exit(USAGE)
+    except TimeoutError:
+        print("Timeout Error")
+    except socket.timeout:
+        print("Server did not respond within timeout period. Exiting...")
 
  
 if __name__ == '__main__':
