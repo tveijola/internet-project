@@ -34,17 +34,19 @@ def send_and_receive_tcp(address, port, message):
 
     # send given message to socket
     print("Sending message: ", message)
-    s.send(message)
+    #s.send(message)
     
     # receive data from socket
     print("Receiving data")
     data = s.recv(4096)
-    print(data)
+
+    print(data.decode())
     # data you received is in bytes format. turn it to string with .decode() command
     
     # print received data
     
     # close the socket
+    s.close()
     
     # Get your CID and UDP port from the message
     
