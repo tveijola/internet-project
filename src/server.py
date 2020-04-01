@@ -1,19 +1,42 @@
-import socket
+import socketserver
 
-s = socket.socket()
-host = socket.gethostname()
-host = socket.gethostbyname(host)
-port = 12345
-print("Binding server to host: {}, port: {}".format(host, port))
-s.bind((host, port))
 
-s.listen(5)
+class UDPConnectionHandler(socketserver.BaseRequestHandler):
+    def handle(self):
 
-while True:
-    c, addr = s.accept()
-    print("Got connection from ", addr)
-    msg = "Thank you for connecting"
-    c.send(msg.encode())
-    c.close()
-    s.close()
-    break
+        word_list1 = "uno dos tres quatro"
+        word_list2 = "saippua kivi perkele kauppias"
+
+        data = self.request[0].decode()
+        sock = self.request[1]
+        print("Received UDP message from {}:".format(self.client_address[0]))
+        print(data)
+        print("Sending response...")
+        sock.sendto(word_list1.encode(), self.client_address)
+
+
+class TCPConnectionHandler(socketserver.BaseRequestHandler):
+    def handle(self):
+        data = self.request.recv(4096).decode()
+        print("Received TCP message from {}:".format(self.client_address[0]))
+        print(data)
+        print("Sending response...")
+
+        self.request.sendall("HELLO asd123 11111\r\n".encode())
+
+        udp_host, udp_port = "localhost", 11111
+        udp_server = socketserver.UDPServer((udp_host, udp_port), UDPConnectionHandler)
+        udp_server.timeout = 2
+        udp_server.handle_request()
+
+        print("Listening...")
+
+
+if __name__ == "__main__":
+    print("Starting server...")
+    print("Address: localhost")
+    print("Port: 12345")
+    HOST, PORT = "localhost", 12345
+    tcp_server = socketserver.TCPServer((HOST, PORT), TCPConnectionHandler)
+    print("\nListening...")
+    tcp_server.serve_forever()
