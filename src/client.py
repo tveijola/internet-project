@@ -15,27 +15,28 @@ def generate_key(key_len=64):
 
 def crypt(text, key):
     # Perform XOR between [text] and [key]
-    return "".join(chr(ord(text[i]) ^ ord(key[i])) for i in range(len(text)))
+    return ''.join(chr(ord(text[i]) ^ ord(key[i])) for i in range(len(text)))
 
 def pieces(msg, piece_size=64):
     # Returns the input string as a list of strings of length [piece_size]
     return [msg[i:i+piece_size] for i in range(0, len(msg), piece_size)]
 
-def get_parity(n):
-    # Returns 1 if [n] contains an even number of 1's, 0 otherwise
+def get_parity(c):
+    # Returns 1 if input character c binary form contains an odd number of 1's, 0 otherwise
+    n = ord(c)
     while n > 1:
         n = (n >> 1) ^ (n & 1)
     return n
 
 def add_parity(msg):
     # Adds parity bits to chars in input string and returns the modified string
-    return "".join(chr((c << 1) + get_parity(c)) for c in msg.encode())
+    return ''.join(chr((ord(c) << 1) + get_parity(c)) for c in msg)
 
 def check_parity(msg):
     # Checks input string characters for parity
-    # Returns the input string without parity bits and boolean parity value
-    parity = all(get_parity(c) == 0 for c in msg.encode())
-    msg = "".join(chr(c >> 1) for c in msg.encode())
+    # Returns the input string without parity bits and the boolean parity value
+    parity = all(get_parity(c) == 0 for c in msg)
+    msg = ''.join(chr(ord(c) >> 1) for c in msg)
     return msg, parity
 
 def menu():
@@ -107,6 +108,7 @@ def send_and_receive_udp(address, port, cid, client_keys, server_keys):
         # Split msg to 64 byte parts and send each piece
         parts, remaining = pieces(msg), len(msg)
         for part in parts:
+            print("Sending PART:", part)
             remaining -= len(part)
             if client_keys:
                 part = crypt(part, client_keys.pop(0))
@@ -117,8 +119,8 @@ def send_and_receive_udp(address, port, cid, client_keys, server_keys):
         # Receive next message
         data_remaining, content, parity_ok = 1, "", True
         while data_remaining != 0:
-            data = udp_socket.recv(1024)
-            _, _, eom, data_remaining, content_len, next_part = struct.unpack(packet_format, data)
+            data = udp_socket.recv(4096)
+            _, ack, eom, data_remaining, content_len, next_part = struct.unpack(packet_format, data)
             next_part = next_part.decode()[0:content_len]
             if eom:
                 print("\nReceived:", next_part.strip())
@@ -128,6 +130,7 @@ def send_and_receive_udp(address, port, cid, client_keys, server_keys):
                 parity_ok = False
             if server_keys:
                 next_part = crypt(next_part, server_keys.pop(0))
+            print("NEXTPART:", next_part)
             content += next_part
 
         # Generate reply
@@ -143,6 +146,20 @@ def send_and_receive_udp(address, port, cid, client_keys, server_keys):
     return
 
 def main():
+    """
+    key = generate_key()
+    text = "This text needs to be sent."
+    print(text)
+    encrypted = crypt(text, key)
+    print(encrypted)
+    encrypted_parity_added = add_parity(encrypted)
+    print(encrypted_parity_added)
+    encrypted_parity_checked, par = check_parity(encrypted_parity_added)
+    print(encrypted_parity_checked, par)
+    decrypted = crypt(encrypted_parity_checked, key)
+    print(decrypted)
+    return
+"""
 
     USAGE = 'usage: %s <server address> <server port> <message>' % sys.argv[0]
 
