@@ -1,7 +1,5 @@
-#!/usr/bin/python
 # -*- coding: utf-8 -*-
- 
-# The modules required
+
 import sys
 import socket
 import struct
@@ -10,15 +8,15 @@ import random
 HEXCHARS = '0123456789abcdefABCDEF'
 
 def generate_key(key_len=64):
-    # Generate encryption keys of hexadecimal characters of lenght [key_len]
+    # Generate encryption keys of hexadecimal characters of length [key_len]
     return "".join(random.choice(HEXCHARS) for i in range(key_len))
 
 def crypt(text, key):
-    # Perform XOR between [text] and [key]
+    # Perform bitwise XOR between [text] and [key]
     return ''.join(chr(ord(text[i]) ^ ord(key[i])) for i in range(len(text)))
 
 def pieces(msg, piece_size=64):
-    # Returns the input string as a list of strings of length [piece_size]
+    # Returns the input string as a list of strings, each of length [piece_size]
     return [msg[i:i+piece_size] for i in range(0, len(msg), piece_size)]
 
 def get_parity(c):
@@ -70,6 +68,7 @@ def send_and_receive_tcp(address, port, msg):
         keys_text = "".join(key + "\r\n" for key in client_keys)
         msg += " ENC MUL PAR\r\n" + keys_text + ".\r\n"
 
+        # Send initial message, and receive reply
         print("Sending initial HELLO message...\n")
         tcp_socket.send(msg.encode())
         print("Receiving data...")
@@ -77,7 +76,7 @@ def send_and_receive_tcp(address, port, msg):
         print("Received data:", data.strip())
         tcp_socket.close()
         
-        # Get your CID and UDP port from the message
+        # Get CID, UDP port and encryption keys from the message
         data_list = data.split()
         cid = data_list[1]
         udp_port = int(data_list[2])
@@ -99,67 +98,56 @@ def send_and_receive_udp(address, port, cid, client_keys, server_keys):
 
     print("\nCreating UDP socket...")
     udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    packet_format, parity_ok, eom = "!8s??HH128s", True, False
+
+    # Construct initial message
     msg = "Hello from " + cid
-    cid, packet_format = cid.encode(), '!8s??HH128s'
-    parity_ok, eom = True, False
     print("Sending initial message\n")
 
     while not eom:
-        # Split msg to 64 byte parts and send each piece
-        parts, remaining = pieces(msg), len(msg)
+        parts, remaining = pieces(msg), len(msg)  # Split msg to 64 byte parts
+        # Send message parts
         for part in parts:
-            print("Sending PART:", part)
-            remaining -= len(part)
+            part_len = len(part)
+            remaining -= part_len
             if client_keys:
-                part = crypt(part, client_keys.pop(0))
-            part = add_parity(part)
-            packet = struct.pack(packet_format, cid, parity_ok, False, remaining, len(part), part.encode())
+                part = crypt(part, client_keys.pop(0))  # Encryption
+            part = add_parity(part)  # Parity
+            packet = struct.pack(packet_format, cid.encode(), parity_ok, False, remaining, part_len, part.encode())
             udp_socket.sendto(packet, (address, port))
 
-        # Receive next message
+        # Receive message parts
         data_remaining, content, parity_ok = 1, "", True
         while data_remaining != 0:
-            data = udp_socket.recv(4096)
-            _, ack, eom, data_remaining, content_len, next_part = struct.unpack(packet_format, data)
+            data = udp_socket.recv(1024)
+            resp_cid, ack, eom, data_remaining, content_len, next_part = struct.unpack(packet_format, data)
             next_part = next_part.decode()[0:content_len]
             if eom:
-                print("\nReceived:", next_part.strip())
+                # If last message, print the message, close socket and return
+                print("\nReceived:", next_part)
+                udp_socket.close()
                 return
-            next_part, parity = check_parity(next_part)
+            next_part, parity = check_parity(next_part)  # Parity check
             if not parity:
                 parity_ok = False
             if server_keys:
-                next_part = crypt(next_part, server_keys.pop(0))
-            print("NEXTPART:", next_part)
+                next_part = crypt(next_part, server_keys.pop(0))  # Decryption
             content += next_part
 
         # Generate reply
         if parity_ok:
-            print("Received:", content.strip())
+            print("Received:", content)
             word_list = content.split()
             word_list.reverse()
             msg = " ".join(word_list)
-            print("Reversed: {}\n".format(msg.strip()))
-        elif not parity_ok:
-            print("ERROR IN PARITY DETECTED! Message: {}\n".format(content.strip()))
+            print("Reversed: {}\n".format(msg))
+        else:
+            print("ERROR IN PARITY DETECTED! Message: {}\n".format(content))
             msg = "Send again"
+    udp_socket.close()
     return
 
 def main():
-    """
-    key = generate_key()
-    text = "This text needs to be sent."
-    print(text)
-    encrypted = crypt(text, key)
-    print(encrypted)
-    encrypted_parity_added = add_parity(encrypted)
-    print(encrypted_parity_added)
-    encrypted_parity_checked, par = check_parity(encrypted_parity_added)
-    print(encrypted_parity_checked, par)
-    decrypted = crypt(encrypted_parity_checked, key)
-    print(decrypted)
-    return
-"""
 
     USAGE = 'usage: %s <server address> <server port> <message>' % sys.argv[0]
 
